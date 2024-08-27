@@ -1,9 +1,9 @@
-import OCR from './OCR';
+import OCRGemini from './OCRGemini';
 
 function App() {
   return (
       <div>
-        <OCR />
+        <OCRGemini/>
       </div>
   );
 }
