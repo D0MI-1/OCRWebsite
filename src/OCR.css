@@ -158,3 +158,12 @@
 .lexoffice-button:hover {
     background-color: #218838;
 }
+
+.send-invoice-button {
+    background-color: #28a745;
+    color: white;
+}
+
+.send-invoice-button:hover {
+    background-color: #218838;
+}

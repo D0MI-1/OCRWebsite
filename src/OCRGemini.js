@@ -277,6 +277,8 @@ const OCRGemini = () => {
     };
 
     const handleMakeBillWithLexOffice = async (sendImmediately = false) => {
+        console.log(`handleMakeBillWithLexOffice called with sendImmediately: ${sendImmediately}`);
+
         if (password !== process.env.REACT_APP_PASSWORT) {
             console.error('Unauthorized user attempted to create a Lexoffice bill');
             alert('You are not authorized to create Lexoffice bills.');
@@ -299,9 +301,9 @@ const OCRGemini = () => {
         // Iterate through all items in the table
         for (let i = 0; i < keywordResults["Company"].length; i++) {
             const companyName = keywordResults["Company"][i]?.value || "";
-            const nettoAmount = parseFloat(keywordResults["Netto"][i]?.value || "0");
-            const bruttoAmount = parseFloat(keywordResults["Brutto"][i]?.value || "0");
-            const mwst = parseFloat(keywordResults["MwSt"][i]?.value || "0");
+            const nettoAmount = parseFloat(keywordResults["Netto"][i]?.value.replace(',', '.') || "0");
+            const bruttoAmount = parseFloat(keywordResults["Brutto"][i]?.value.replace(',', '.') || "0");
+            const mwst = parseFloat(keywordResults["MwSt"][i]?.value.replace(',', '.') || "0");
             const invoiceDate = keywordResults["Rechnungsdatum"][i]?.value || formattedDate;
             const invoiceNumber = keywordResults["Rechnungsnummer"][i]?.value || "";
 
@@ -390,6 +392,8 @@ const OCRGemini = () => {
                 attachments: attachments
             };
 
+            console.log('Sending invoice data:', JSON.stringify(invoiceData));
+
             // Create the invoice using your Cloudflare Worker
             const response = await axios.post(WORKER_URL, invoiceData, {
                 headers: {
@@ -399,20 +403,48 @@ const OCRGemini = () => {
             });
             console.log('Invoice created successfully:', response.data);
 
+            if (!sendImmediately) {
+                alert('Invoice created successfully!');
+                return;
+            }
+
             if (sendImmediately && response.data.id) {
-                const finalizeResponse = await axios.post(`${WORKER_URL}/finalize/${response.data.id}`, null, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
+                const formattedDate = new Date().toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
                 });
 
-                if (finalizeResponse.status === 204) {
-                    console.log('Invoice finalized and sent successfully');
+                console.log('Sending email request...');
+                try {
+                    const emailResponse = await axios.post(`${WORKER_URL}/send-email`, {
+                        invoiceId: response.data.id,
+                        recipientEmail: "dominik.urban1@gmx.de",
+                        senderEmail: process.env.REACT_APP_SEND_MAIL_FROM,
+                        subject: `Rechnung ${response.data.voucherNumber} Baustoffe ${address}`,
+                        text: `Sehr geehrte Damen und Herren,\n\nim Anhang finden Sie Ihre Rechnung ${response.data.voucherNumber} vom ${formattedDate}.\n\nBei Fragen stehen wir Ihnen gerne zur Verfügung.\n\nMit freundlichen Grüßen`
+                    });
+
+                    if (emailResponse.status === 200) {
+                        console.log('Invoice finalized and sent successfully');
+                        alert('Invoice created and email sent successfully!');
+                    } else {
+                        console.error('Failed to send email:', emailResponse.data);
+                        alert('Invoice created, but failed to send email. Please check the logs for more information.');
+                    }
+                } catch (emailError) {
+                    console.error('Error sending email:', emailError);
+                    alert(`Invoice created, but an error occurred while sending the email: ${emailError.message}`);
                 }
+            } else {
+                alert('Invoice created successfully!');
             }
         } catch (error) {
             console.error('Error creating or sending invoice:', error);
+            if (error.response) {
+                console.error('Error response:', error.response.data);
+            }
+            alert(`An error occurred: ${error.message}`);
         }
 
         console.log("Make Bill with LexOffice:", address, password, keywordResults);
@@ -426,6 +458,20 @@ const OCRGemini = () => {
             reader.readAsDataURL(file);
         });
     };
+
+    //* Insert button back when we find a possibilty to send emails
+    // <!--<button
+    //                             onClick={() => {
+    //                                 if (window.confirm(`Are you sure you want to create and send an invoice with ${keywordResults["Company"].length} items?`)) {
+    //                                     handleMakeBillWithLexOffice(true);
+    //                                 }
+    //                             }}
+    //                             className="send-invoice-button"
+    //                         >
+    //                             Create and Send Invoice
+    //                         </button>-->
+    // *//
+
 
     return (
         <div className="ocr-container">
@@ -506,19 +552,13 @@ const OCRGemini = () => {
                                 className="lexoffice-input"
                             />
                         </div>
-                        <button onClick={handleMakeBillWithLexOffice} className="lexoffice-button">
+                        <button
+                            onClick={() => handleMakeBillWithLexOffice(false)}
+                            className="lexoffice-button"
+                        >
                             Create LexOffice Bill
                         </button>
-                        <button
-                            onClick={() => {
-                                if (window.confirm(`Are you sure you want to create and send an invoice with ${keywordResults["Company"].length} items?`)) {
-                                    handleMakeBillWithLexOffice(true);
-                                }
-                            }}
-                            className="send-invoice-button"
-                        >
-                            Create and Send Invoice
-                        </button>
+
                     </div>
                 </div>
             </div>
