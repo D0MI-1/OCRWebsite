@@ -1,9 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
-import { Trash2, Upload, Lock, MapPinHouse } from 'lucide-react';
+import { Trash2, Upload, Lock, AtSign , MapPinHouse } from 'lucide-react';
+import * as PDFJS from 'pdfjs-dist/webpack';
+
 import './OCR.css';
-import { PDFLoader } from 'react-pdf-js';
 
 const OCRGemini = () => {
     const [files, setFiles] = useState([]);
@@ -44,6 +45,20 @@ const OCRGemini = () => {
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
+    const accumulateResults = (fileResults) => {
+        const accumulated = {};
+        fileResults.forEach((result, index) => {
+            Object.entries(result).forEach(([key, value]) => {
+                if (["netto_amount", "steuer_amount", "brutto_amount", "mwst_percentage"].includes(key)) {
+                    accumulated[key] = value; // Always update these values
+                } else if (!accumulated[key] || index === 0) {
+                    accumulated[key] = value; // Set other values only if not set or it's the first page
+                }
+            });
+        });
+        return accumulated;
+    };
+
     const handleFileUpload = async () => {
         if (files.length === 0) return;
 
@@ -54,33 +69,44 @@ const OCRGemini = () => {
 
         for (const file of files) {
             try {
-                const base64data = await convertToBase64(file);
-                const result = await processInvoiceWithGemini(base64data);
-                newOCRResults.push(result);
+                let pages;
+                if (file.type === 'application/pdf') {
+                    pages = await convertPdfToImages(file);
+                } else {
+                    const base64data = await convertToBase64(file);
+                    pages = [base64data];
+                }
 
-                const keyMapping = {
-                    "company_name": "Company",
-                    "netto_amount": "Netto",
-                    "steuer_amount": "Steuer",
-                    "brutto_amount": "Brutto",
-                    "mwst_percentage": "MwSt",
-                    "summe_amount": "Summe",
-                    "invoice_date": "Rechnungsdatum",
-                    "invoice_number": "Rechnungsnummer"
-                };
+                const pageResults = [];
+                for (const page of pages) {
+                    const result = await processInvoiceWithGemini(page);
+                    pageResults.push(result);
+                }
 
-                displayKeywords.forEach(keyword => {
-                    if (!newKeywordResults[keyword]) {
-                        newKeywordResults[keyword] = [];
-                    }
-                    const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
-                    newKeywordResults[keyword].push({ value: result[jsonKey] || '' });                });
+                const accumulatedResult = accumulateResults(pageResults);
+                newOCRResults.push(accumulatedResult);
 
-                // Verify calculations
-                // verifyCalculations(result, newKeywordResults);
+                    const keyMapping = {
+                        "company_name": "Company",
+                        "netto_amount": "Netto",
+                        "steuer_amount": "Steuer",
+                        "brutto_amount": "Brutto",
+                        "mwst_percentage": "MwSt",
+                        "summe_amount": "Summe",
+                        "invoice_date": "Rechnungsdatum",
+                        "invoice_number": "Rechnungsnummer"
+                    };
+
+                    displayKeywords.forEach(keyword => {
+                        if (!newKeywordResults[keyword]) {
+                            newKeywordResults[keyword] = [];
+                        }
+                        const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
+                        newKeywordResults[keyword].push({ value: accumulatedResult[jsonKey] || '' });
+                    });
 
             } catch (error) {
-                console.error("Error during invoice processing:", error);
+                console.error("Error during file processing:", error);
                 newOCRResults.push({ error: error.message });
                 displayKeywords.forEach(keyword => {
                     if (!newKeywordResults[keyword]) {
@@ -107,6 +133,47 @@ const OCRGemini = () => {
             };
         });
     };
+
+    const convertPdfToImages = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const arrayBuffer = event.target.result;
+                try {
+                    const pdf = await PDFJS.getDocument(arrayBuffer).promise;
+                    const pages = [];
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await getPage(pdf, i);
+                        pages.push(page);
+                    }
+                    resolve(pages);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsArrayBuffer(file);
+        });
+    };
+
+    const getPage = (pdf, num) => {
+        return new Promise((resolve, reject) => {
+            pdf.getPage(num).then(page => {
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale: scale });
+                const canvas = document.createElement('canvas');
+                const canvasContext = canvas.getContext('2d');
+                canvas.height = viewport.height || viewport.viewBox[3];
+                canvas.width = viewport.width || viewport.viewBox[2];
+                page.render({
+                    canvasContext, viewport
+                }).promise.then(() => {
+                    resolve(canvas.toDataURL().split(',')[1]);
+                }).catch(reject);
+            }).catch(reject);
+        });
+    };
+
 
     const processInvoiceWithGemini = async (base64Image) => {
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
@@ -209,8 +276,155 @@ const OCRGemini = () => {
         }
     };
 
-    const handleMakeBillWithLexOffice = () => {
+    const handleMakeBillWithLexOffice = async (sendImmediately = false) => {
+        if (password !== process.env.REACT_APP_PASSWORT) {
+            console.error('Unauthorized user attempted to create a Lexoffice bill');
+            alert('You are not authorized to create Lexoffice bills.');
+            return;
+        }
+
+        const WORKER_URL = process.env.REACT_APP_WORKER_URL;
+
+        let remarkText = "Bei Fragen stehen wir Ihnen gerne zur Verfügung.";
+        const date = new Date();
+        const formattedDate = date.toISOString().split('T')[0];
+        const timePart = "T00:00:07.480+02:00";
+        const finalDate = formattedDate + timePart;
+
+        const lineItems = [];
+        let totalNetAmount = 0;
+        let totalGrossAmount = 0;
+        const attachments = [];
+
+        // Iterate through all items in the table
+        for (let i = 0; i < keywordResults["Company"].length; i++) {
+            const companyName = keywordResults["Company"][i]?.value || "";
+            const nettoAmount = parseFloat(keywordResults["Netto"][i]?.value || "0");
+            const bruttoAmount = parseFloat(keywordResults["Brutto"][i]?.value || "0");
+            const mwst = parseFloat(keywordResults["MwSt"][i]?.value || "0");
+            const invoiceDate = keywordResults["Rechnungsdatum"][i]?.value || formattedDate;
+            const invoiceNumber = keywordResults["Rechnungsnummer"][i]?.value || "";
+
+            // Calculate tax rate
+            let taxRate;
+            if (mwst > 0) {
+                taxRate = mwst;
+            } else if (nettoAmount > 0 && bruttoAmount > 0) {
+                taxRate = ((bruttoAmount / nettoAmount) - 1) * 100;
+            } else {
+                taxRate = 19; // Default to 19% if calculation is not possible
+            }
+
+            // Format item description based on company name
+            let itemName, itemDescription;
+            if (companyName.toLowerCase().includes("hagebaumarkt") || companyName.toLowerCase().includes("bauhaus")) {
+                itemName = `Rechnung für Baustoffe ${companyName} vom ${invoiceDate}`;
+                itemDescription = `Baustoffe`;
+            } else if (companyName.toLowerCase().includes("ginger") || companyName.toLowerCase().includes("gienger")) {
+                itemName = "Baustoffe von Gienger Haustechnik";
+                itemDescription = `Rechnung für Rechnungsnummer ${invoiceNumber} für Baustoffe von Gienger München KG Haustechnik vom ${invoiceDate}`;
+            } else {
+                itemName = `Rechnung ${companyName}`;
+                itemDescription = `Baustoffe vom ${invoiceDate}`;
+            }
+
+            lineItems.push({
+                type: "custom",
+                name: itemName,
+                description: itemDescription,
+                quantity: 1,
+                unitName: "Stück",
+                unitPrice: {
+                    currency: "EUR",
+                    netAmount: nettoAmount,
+                    grossAmount: bruttoAmount,
+                    taxRatePercentage: taxRate
+                }
+            });
+
+            totalNetAmount += nettoAmount;
+            totalGrossAmount += bruttoAmount;
+
+            if (files[i]) {
+                const fileContent = await readFileAsBase64(files[i]);
+                attachments.push({
+                    filename: files[i].name,
+                    content: fileContent,
+                    mimeType: files[i].type
+                });
+            }
+        }
+
+        try {
+            const invoiceData = {
+                voucherDate: finalDate,
+                address: {
+                    street: process.env.REACT_APP_STREET,
+                    zip: process.env.REACT_APP_ZIP,
+                    city: process.env.REACT_APP_CITY,
+                    name: process.env.REACT_APP_NAME,
+                    countryCode: process.env.REACT_APP_COUNTRY_CODE,
+                    contactId: process.env.REACT_APP_CONTACTID
+                },
+                lineItems: lineItems,
+                totalPrice: {
+                    currency: "EUR",
+                    totalNetAmount: totalNetAmount,
+                    totalGrossAmount: totalGrossAmount,
+                    totalTaxAmount: parseFloat((totalGrossAmount - totalNetAmount).toFixed(4))
+                },
+                taxConditions: {
+                    taxType: "net"
+                },
+                paymentConditions: {
+                    paymentTermLabel: "Zahlbar innerhalb von 7 Tagen",
+                    paymentTermDuration: 7
+                },
+                shippingConditions: {
+                    shippingType: "none"
+                },
+                title: `Rechnung`,
+                introduction: `Sehr geehrte Damen und Herren\n\nwir erlauben uns, wie folgt Rechnung zu stellen: \n\nObjekt: ${address}`,
+                remark: remarkText,
+                customFields: [],
+                attachments: attachments
+            };
+
+            // Create the invoice using your Cloudflare Worker
+            const response = await axios.post(WORKER_URL, invoiceData, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            console.log('Invoice created successfully:', response.data);
+
+            if (sendImmediately && response.data.id) {
+                const finalizeResponse = await axios.post(`${WORKER_URL}/finalize/${response.data.id}`, null, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (finalizeResponse.status === 204) {
+                    console.log('Invoice finalized and sent successfully');
+                }
+            }
+        } catch (error) {
+            console.error('Error creating or sending invoice:', error);
+        }
+
         console.log("Make Bill with LexOffice:", address, password, keywordResults);
+    };
+
+    const readFileAsBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(file);
+        });
     };
 
     return (
@@ -294,6 +508,16 @@ const OCRGemini = () => {
                         </div>
                         <button onClick={handleMakeBillWithLexOffice} className="lexoffice-button">
                             Create LexOffice Bill
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (window.confirm(`Are you sure you want to create and send an invoice with ${keywordResults["Company"].length} items?`)) {
+                                    handleMakeBillWithLexOffice(true);
+                                }
+                            }}
+                            className="send-invoice-button"
+                        >
+                            Create and Send Invoice
                         </button>
                     </div>
                 </div>
