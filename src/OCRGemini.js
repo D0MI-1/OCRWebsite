@@ -406,6 +406,8 @@ const OCRGemini = () => {
                 introduction: `Sehr geehrte Damen und Herren\n\nwir erlauben uns, wie folgt Rechnung zu stellen: \n\nObjekt: ${address}`,
                 remark: remarkText,
                 customFields: [],
+                voucherStatus: "open", // Set the invoice status to open
+
                 attachments: attachments
             };
 
@@ -436,7 +438,7 @@ const OCRGemini = () => {
                 try {
                     const emailResponse = await axios.post(`${WORKER_URL}/send-email`, {
                         invoiceId: response.data.id,
-                        recipientEmail: "dominik.urban1@gmx.de",
+                        recipientEmail: process.env.REACT_APP_SEND_MAIL_TO,
                         senderEmail: process.env.REACT_APP_SEND_MAIL_FROM,
                         subject: `Rechnung ${response.data.voucherNumber} Baustoffe ${address}`,
                         text: `Sehr geehrte Damen und Herren,\n\nim Anhang finden Sie Ihre Rechnung ${response.data.voucherNumber} vom ${formattedDate}.\n\nBei Fragen stehen wir Ihnen gerne zur Verfügung.\n\nMit freundlichen Grüßen`
@@ -489,6 +491,36 @@ const OCRGemini = () => {
     //                         </button>-->
     // *//
 
+    const fetchInvoices = async () => {
+        try {
+            const response = await axios.get(`${process.env.REACT_APP_WORKER_URL}/invoices`, {
+                headers: {
+                    'Accept': 'application/json'
+                },
+                params: { page: 0, size: 100 }
+            });
+
+            console.log('Fetched invoices:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching invoices:', error);
+            if (error.response) {
+                console.error('Error response:', error.response.data);
+            }
+            throw error;
+        }
+    };
+
+    const handleFetchInvoices = async () => {
+        try {
+            const invoices = await fetchInvoices();
+            console.log('Invoices:', invoices);
+            alert('Invoices fetched successfully. Check the console for details.');
+        } catch (error) {
+            console.error('Failed to fetch invoices:', error);
+            alert('Failed to fetch invoices. Check the console for details.');
+        }
+    };
 
     return (
         <div className="ocr-container">
@@ -575,7 +607,19 @@ const OCRGemini = () => {
                         >
                             Create LexOffice Bill
                         </button>
-
+                        <button onClick={() => {
+                            if (window.confirm(`Are you sure you want to create and send an invoice with ${keywordResults["Company"].length} items?`)) {
+                                handleMakeBillWithLexOffice(true);
+                            }
+                        }
+                        }
+                                className="send-invoice-button"
+                        >
+                            Create and Send Invoice
+                        </button>
+                        <button onClick={handleFetchInvoices } className="fetch-invoices-button">
+                            Fetch Invoices
+                        </button>
                     </div>
                 </div>
             </div>
