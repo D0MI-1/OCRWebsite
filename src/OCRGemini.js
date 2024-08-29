@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, {useCallback, useState} from 'react';
 import axios from 'axios';
-import { useDropzone } from 'react-dropzone';
-import { Trash2, Upload, Lock, AtSign , MapPinHouse } from 'lucide-react';
+import {useDropzone} from 'react-dropzone';
+import {Lock, MapPinHouse, Trash2, Upload} from 'lucide-react';
 import * as PDFJS from 'pdfjs-dist/webpack';
 
 import './OCR.css';
@@ -276,6 +276,23 @@ const OCRGemini = () => {
         }
     };
 
+    const getCurrentFormattedDate = () => {
+        const date = new Date();
+
+        // Get the date part in YYYY-MM-DD format
+        const formattedDate = date.toISOString().split('T')[0];
+
+        // Get hours and minutes
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        // Construct the time part
+        const timePart = `T${hours}:${minutes}:07.480+02:00`;
+
+        // Combine date and time
+        return formattedDate + timePart;
+    };
+
     const handleMakeBillWithLexOffice = async (sendImmediately = false) => {
         console.log(`handleMakeBillWithLexOffice called with sendImmediately: ${sendImmediately}`);
 
@@ -291,7 +308,7 @@ const OCRGemini = () => {
         const date = new Date();
         const formattedDate = date.toISOString().split('T')[0];
         const timePart = "T00:00:07.480+02:00";
-        const finalDate = formattedDate + timePart;
+        const finalDate = getCurrentFormattedDate();
 
         const lineItems = [];
         let totalNetAmount = 0;
