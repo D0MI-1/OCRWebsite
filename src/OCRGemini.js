@@ -32,7 +32,7 @@ const OCRGemini = () => {
         setKeywordResults(prevResults => ({
             ...prevResults,
             [keyword]: prevResults[keyword].map((result, index) =>
-                index === fileIndex ? { ...result, value } : result
+                index === fileIndex ? {...result, value} : result
             )
         }));
     };
@@ -43,7 +43,7 @@ const OCRGemini = () => {
         setKeywordResults({});
     };
 
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+    const {getRootProps, getInputProps, isDragActive} = useDropzone({onDrop});
 
     const accumulateResults = (fileResults) => {
         const accumulated = {};
@@ -86,33 +86,33 @@ const OCRGemini = () => {
                 const accumulatedResult = accumulateResults(pageResults);
                 newOCRResults.push(accumulatedResult);
 
-                    const keyMapping = {
-                        "company_name": "Company",
-                        "netto_amount": "Netto",
-                        "steuer_amount": "Steuer",
-                        "brutto_amount": "Brutto",
-                        "mwst_percentage": "MwSt",
-                        "summe_amount": "Summe",
-                        "invoice_date": "Rechnungsdatum",
-                        "invoice_number": "Rechnungsnummer"
-                    };
+                const keyMapping = {
+                    "company_name": "Company",
+                    "netto_amount": "Netto",
+                    "steuer_amount": "Steuer",
+                    "brutto_amount": "Brutto",
+                    "mwst_percentage": "MwSt",
+                    "summe_amount": "Summe",
+                    "invoice_date": "Rechnungsdatum",
+                    "invoice_number": "Rechnungsnummer"
+                };
 
-                    displayKeywords.forEach(keyword => {
-                        if (!newKeywordResults[keyword]) {
-                            newKeywordResults[keyword] = [];
-                        }
-                        const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
-                        newKeywordResults[keyword].push({ value: accumulatedResult[jsonKey] || '' });
-                    });
-
-            } catch (error) {
-                console.error("Error during file processing:", error);
-                newOCRResults.push({ error: error.message });
                 displayKeywords.forEach(keyword => {
                     if (!newKeywordResults[keyword]) {
                         newKeywordResults[keyword] = [];
                     }
-                    newKeywordResults[keyword].push({ value: 'Error', error: true });
+                    const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
+                    newKeywordResults[keyword].push({value: accumulatedResult[jsonKey] || ''});
+                });
+
+            } catch (error) {
+                console.error("Error during file processing:", error);
+                newOCRResults.push({error: error.message});
+                displayKeywords.forEach(keyword => {
+                    if (!newKeywordResults[keyword]) {
+                        newKeywordResults[keyword] = [];
+                    }
+                    newKeywordResults[keyword].push({value: 'Error', error: true});
                 });
             }
         }
@@ -160,7 +160,7 @@ const OCRGemini = () => {
         return new Promise((resolve, reject) => {
             pdf.getPage(num).then(page => {
                 const scale = 1.5;
-                const viewport = page.getViewport({ scale: scale });
+                const viewport = page.getViewport({scale: scale});
                 const canvas = document.createElement('canvas');
                 const canvasContext = canvas.getContext('2d');
                 canvas.height = viewport.height || viewport.viewBox[3];
@@ -199,8 +199,8 @@ const OCRGemini = () => {
                 contents: [
                     {
                         parts: [
-                            { text: prompt },
-                            { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+                            {text: prompt},
+                            {inlineData: {mimeType: "image/jpeg", data: base64Image}}
                         ]
                     }
                 ]
@@ -216,7 +216,7 @@ const OCRGemini = () => {
                 return extractedJson;
             } else {
                 console.error("Unexpected response structure:", response.data);
-                throw new Error("Unexpected response format from Gemini API");
+                //throw new Error("Unexpected response format from Gemini API");
             }
         } catch (error) {
             console.error("Gemini API error:", error.response ? error.response.data : error.message);
@@ -247,7 +247,7 @@ const OCRGemini = () => {
             throw new Error("Failed to extract valid JSON from the response");
         }
     };
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const verifyCalculations = (result, newKeywordResults) => {
         const netto = parseFloat(result.netto_amount.replace(',', '.'));
         const brutto = parseFloat(result.brutto_amount.replace(',', '.'));
@@ -307,6 +307,7 @@ const OCRGemini = () => {
         let remarkText = "Bei Fragen stehen wir Ihnen gerne zur Verfügung.";
         const date = new Date();
         const formattedDate = date.toISOString().split('T')[0];
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const timePart = "T00:00:07.480+02:00";
         const finalDate = getCurrentFormattedDate();
 
@@ -489,7 +490,11 @@ const OCRGemini = () => {
     //                         >
     //                             Create and Send Invoice
     //                         </button>-->
-    // *//
+//
+//    <button onClick={handleFetchInvoices} className="fetch-invoices-button">
+//        Fetch Invoices
+//    </button>
+//     *//
 
     const fetchInvoices = async () => {
         try {
@@ -497,7 +502,7 @@ const OCRGemini = () => {
                 headers: {
                     'Accept': 'application/json'
                 },
-                params: { page: 0, size: 100 }
+                params: {page: 0, size: 100}
             });
 
             console.log('Fetched invoices:', response.data);
@@ -510,7 +515,7 @@ const OCRGemini = () => {
             throw error;
         }
     };
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const handleFetchInvoices = async () => {
         try {
             const invoices = await fetchInvoices();
@@ -533,14 +538,14 @@ const OCRGemini = () => {
                         ) : (
                             <p>Drag 'n' drop some files here, or click to select files</p>
                         )}
-                        <Upload className="upload-icon" />
+                        <Upload className="upload-icon"/>
                     </div>
                     <ul className="file-list">
                         {files.map((file, index) => (
                             <li key={index} className="file-item">
                                 <span>{file.name}</span>
                                 <button onClick={() => removeFile(index)} className="delete-button">
-                                    <Trash2 size={18} />
+                                    <Trash2 size={18}/>
                                 </button>
                             </li>
                         ))}
@@ -616,9 +621,6 @@ const OCRGemini = () => {
                                 className="send-invoice-button"
                         >
                             Create and Send Invoice
-                        </button>
-                        <button onClick={handleFetchInvoices } className="fetch-invoices-button">
-                            Fetch Invoices
                         </button>
                     </div>
                 </div>
