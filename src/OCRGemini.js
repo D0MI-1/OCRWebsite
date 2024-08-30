@@ -247,7 +247,7 @@ const OCRGemini = () => {
             throw new Error("Failed to extract valid JSON from the response");
         }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
     const verifyCalculations = (result, newKeywordResults) => {
         const netto = parseFloat(result.netto_amount.replace(',', '.'));
         const brutto = parseFloat(result.brutto_amount.replace(',', '.'));
@@ -307,7 +307,7 @@ const OCRGemini = () => {
         let remarkText = "Bei Fragen stehen wir Ihnen gerne zur Verfügung.";
         const date = new Date();
         const formattedDate = date.toISOString().split('T')[0];
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line
         const timePart = "T00:00:07.480+02:00";
         const finalDate = getCurrentFormattedDate();
 
@@ -515,7 +515,7 @@ const OCRGemini = () => {
             throw error;
         }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
     const handleFetchInvoices = async () => {
         try {
             const invoices = await fetchInvoices();
