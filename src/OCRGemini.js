@@ -68,24 +68,16 @@ const OCRGemini = () => {
         const newOCRResults = [];
         const newKeywordResults = {};
 
-        for (const file of files) {
             try {
-                let pages;
-                if (file.type === 'application/pdf') {
-                    pages = await convertPdfToImages(file);
-                } else {
-                    const base64data = await convertToBase64(file);
-                    pages = [base64data];
-                }
+                await Promise.all(files.map(async (file) => {
+                    let pages = file.type === 'application/pdf'
+                        ? await convertPdfToImages(file)
+                        : [await convertToBase64(file)];
 
-                const pageResults = [];
-                for (const page of pages) {
-                    const result = await processInvoiceWithGemini(page);
-                    pageResults.push(result);
-                }
+                    const pageResults = await Promise.all(pages.map(processInvoiceWithGemini));
+                    const accumulatedResult = accumulateResults(pageResults);
+                    newOCRResults.push(accumulatedResult);
 
-                const accumulatedResult = accumulateResults(pageResults);
-                newOCRResults.push(accumulatedResult);
 
                 const keyMapping = {
                     "company_name": "Company",
@@ -98,13 +90,12 @@ const OCRGemini = () => {
                     "invoice_number": "Rechnungsnummer"
                 };
 
-                displayKeywords.forEach(keyword => {
-                    if (!newKeywordResults[keyword]) {
-                        newKeywordResults[keyword] = [];
-                    }
-                    const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
-                    newKeywordResults[keyword].push({value: accumulatedResult[jsonKey] || ''});
-                });
+                    displayKeywords.forEach(keyword => {
+                        if (!newKeywordResults[keyword]) newKeywordResults[keyword] = [];
+                        const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
+                        newKeywordResults[keyword].push({value: accumulatedResult[jsonKey] || ''});
+                    });
+                }));
 
             } catch (error) {
                 console.error("Error during file processing:", error);
@@ -116,7 +107,7 @@ const OCRGemini = () => {
                     newKeywordResults[keyword].push({value: 'Error', error: true});
                 });
             }
-        }
+
 
         setOCRResults(newOCRResults);
         setKeywordResults(newKeywordResults);
@@ -207,13 +198,13 @@ const OCRGemini = () => {
                 ]
             });
 
-            console.log("Raw Gemini API Response:", JSON.stringify(response.data, null, 2));
+            //console.log("Raw Gemini API Response:", JSON.stringify(response.data, null, 2));
 
             if (response.data && response.data.candidates && response.data.candidates[0].content) {
                 const text = response.data.candidates[0].content.parts[0].text;
-                console.log("Extracted text from Gemini response:", text);
+                //console.log("Extracted text from Gemini response:", text);
                 const extractedJson = extractJsonFromText(text);
-                console.log("Extracted JSON:", extractedJson);
+                //console.log("Extracted JSON:", extractedJson);
                 return extractedJson;
             } else {
                 console.error("Unexpected response structure:", response.data);
@@ -226,16 +217,16 @@ const OCRGemini = () => {
     };
 
     const extractJsonFromText = (text) => {
-        console.log("Attempting to extract JSON from:", text);
+        //console.log("Attempting to extract JSON from:", text);
         try {
             // Try to parse the entire text as JSON first
             return JSON.parse(text);
         } catch (e) {
-            console.log("Failed to parse entire text as JSON, attempting to extract from markdown");
+            //console.log("Failed to parse entire text as JSON, attempting to extract from markdown");
             // If that fails, try to extract JSON from markdown code blocks
             const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
             if (jsonMatch && jsonMatch[1]) {
-                console.log("Found potential JSON in markdown:", jsonMatch[1]);
+                //console.log("Found potential JSON in markdown:", jsonMatch[1]);
                 try {
                     return JSON.parse(jsonMatch[1].trim());
                 } catch (innerError) {
@@ -295,7 +286,7 @@ const OCRGemini = () => {
     };
 
     const handleMakeBillWithLexOffice = async (sendImmediately = false) => {
-        console.log(`handleMakeBillWithLexOffice called with sendImmediately: ${sendImmediately}`);
+        //console.log(`handleMakeBillWithLexOffice called with sendImmediately: ${sendImmediately}`);
 
         if (password !== process.env.REACT_APP_PASSWORT) {
             console.error('Unauthorized user attempted to create a Lexoffice bill');
@@ -413,7 +404,7 @@ const OCRGemini = () => {
                 attachments: attachments
             };
 
-            console.log('Sending invoice data:', JSON.stringify(invoiceData));
+            //console.log('Sending invoice data:', JSON.stringify(invoiceData));
 
             // Create the invoice using your Cloudflare Worker
             const response = await axios.post(WORKER_URL, invoiceData, {
@@ -422,7 +413,7 @@ const OCRGemini = () => {
                     'Accept': 'application/json'
                 }
             });
-            console.log('Invoice created successfully:', response.data);
+            //console.log('Invoice created successfully:', response.data);
 
             if (!sendImmediately) {
                 alert('Invoice created successfully!');
@@ -436,7 +427,7 @@ const OCRGemini = () => {
                     year: 'numeric'
                 });
 
-                console.log('Sending email request...');
+                //console.log('Sending email request...');
                 try {
                     const emailResponse = await axios.post(`${WORKER_URL}/send-email`, {
                         invoiceId: response.data.id,
@@ -447,7 +438,7 @@ const OCRGemini = () => {
                     });
 
                     if (emailResponse.status === 200) {
-                        console.log('Invoice finalized and sent successfully');
+                        //console.log('Invoice finalized and sent successfully');
                         alert('Invoice created and email sent successfully!');
                     } else {
                         console.error('Failed to send email:', emailResponse.data);
@@ -468,7 +459,7 @@ const OCRGemini = () => {
             alert(`An error occurred: ${error.message}`);
         }
 
-        console.log("Make Bill with LexOffice:", address, password, keywordResults);
+        //console.log("Make Bill with LexOffice:", address, password, keywordResults);
     };
 
     const readFileAsBase64 = (file) => {
@@ -506,7 +497,7 @@ const OCRGemini = () => {
                 params: {page: 0, size: 100}
             });
 
-            console.log('Fetched invoices:', response.data);
+            //console.log('Fetched invoices:', response.data);
             return response.data;
         } catch (error) {
             console.error('Error fetching invoices:', error);
@@ -520,7 +511,7 @@ const OCRGemini = () => {
     const handleFetchInvoices = async () => {
         try {
             const invoices = await fetchInvoices();
-            console.log('Invoices:', invoices);
+            //console.log('Invoices:', invoices);
             alert('Invoices fetched successfully. Check the console for details.');
         } catch (error) {
             console.error('Failed to fetch invoices:', error);
