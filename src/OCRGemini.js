@@ -68,16 +68,24 @@ const OCRGemini = () => {
         const newOCRResults = [];
         const newKeywordResults = {};
 
+        for (const file of files) {
             try {
-                await Promise.all(files.map(async (file) => {
-                    let pages = file.type === 'application/pdf'
-                        ? await convertPdfToImages(file)
-                        : [await convertToBase64(file)];
+                let pages;
+                if (file.type === 'application/pdf') {
+                    pages = await convertPdfToImages(file);
+                } else {
+                    const base64data = await convertToBase64(file);
+                    pages = [base64data];
+                }
 
-                    const pageResults = await Promise.all(pages.map(processInvoiceWithGemini));
-                    const accumulatedResult = accumulateResults(pageResults);
-                    newOCRResults.push(accumulatedResult);
+                const pageResults = [];
+                for (const page of pages) {
+                    const result = await processInvoiceWithGemini(page);
+                    pageResults.push(result);
+                }
 
+                const accumulatedResult = accumulateResults(pageResults);
+                newOCRResults.push(accumulatedResult);
 
                 const keyMapping = {
                     "company_name": "Company",
@@ -90,12 +98,13 @@ const OCRGemini = () => {
                     "invoice_number": "Rechnungsnummer"
                 };
 
-                    displayKeywords.forEach(keyword => {
-                        if (!newKeywordResults[keyword]) newKeywordResults[keyword] = [];
-                        const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
-                        newKeywordResults[keyword].push({value: accumulatedResult[jsonKey] || ''});
-                    });
-                }));
+                displayKeywords.forEach(keyword => {
+                    if (!newKeywordResults[keyword]) {
+                        newKeywordResults[keyword] = [];
+                    }
+                    const jsonKey = Object.keys(keyMapping).find(key => keyMapping[key] === keyword);
+                    newKeywordResults[keyword].push({value: accumulatedResult[jsonKey] || ''});
+                });
 
             } catch (error) {
                 console.error("Error during file processing:", error);
@@ -107,7 +116,7 @@ const OCRGemini = () => {
                     newKeywordResults[keyword].push({value: 'Error', error: true});
                 });
             }
-
+        }
 
         setOCRResults(newOCRResults);
         setKeywordResults(newKeywordResults);
