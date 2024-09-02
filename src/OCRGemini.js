@@ -13,6 +13,7 @@ const OCRGemini = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [address, setAddress] = useState('');
     const [password, setPassword] = useState('');
+
     /* eslint-disable no-unused-vars */
 
     const displayKeywords = ["Company", "Netto", "Steuer", "Brutto", "MwSt", "Summe",
