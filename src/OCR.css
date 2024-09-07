@@ -135,13 +135,14 @@
 
 .input-group {
     display: flex;
-    align-items: center;
+    gap: 10px;
     margin-bottom: 10px;
 }
 
 .input-icon {
-    margin-right: 10px;
-}
+    display: flex;
+    align-items: center;
+    flex: 1;}
 
 .lexoffice-input {
     flex-grow: 1;
@@ -159,6 +160,12 @@
     background-color: #218838;
 }
 
+.button-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .send-invoice-button {
     background-color: #28a745;
     color: white;
@@ -166,4 +173,69 @@
 
 .send-invoice-button:hover {
     background-color: #218838;
+}
+
+.styled-button {
+    position: relative;
+    padding: 10px 20px;
+    background-color: #374151;
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    overflow: hidden;
+}
+
+.styled-button::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(to right, #2563eb, #10b981);
+    border-radius: 10px;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.styled-button:hover {
+    background-color: #1f2937;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.styled-button:hover::before {
+    opacity: 1;
+}
+
+.styled-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.styled-button::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    transform: scale(0.5);
+    pointer-events: none;
+}
+
+.styled-button:hover::after {
+    opacity: 1;
+    transform: scale(1);
 }

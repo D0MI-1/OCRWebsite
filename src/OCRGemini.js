@@ -1,7 +1,7 @@
 import React, {useCallback, useState} from 'react';
 import axios from 'axios';
 import {useDropzone} from 'react-dropzone';
-import {Lock, MapPinHouse, Trash2, Upload} from 'lucide-react';
+import {Lock, MapPinHouse, Trash2, Upload, Download } from 'lucide-react';
 import * as PDFJS from 'pdfjs-dist/webpack';
 
 import './OCR.css';
@@ -529,6 +529,40 @@ const OCRGemini = () => {
         }
     };
 
+    const generateCSV = () => {
+        const headers = tableKeywords.join(',');
+        const rows = ocrResults.map((_, index) => {
+            return tableKeywords.map(keyword => {
+                return `"${keywordResults[keyword]?.[index]?.value || ''}"`;
+            }).join(',');
+        });
+        return `${headers}\n${rows.join('\n')}`;
+    };
+
+    const downloadCSV = () => {
+        const csv = generateCSV();
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'ocr_results.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
+    const StyledButton = ({ onClick, children }) => (
+        <button
+            onClick={onClick}
+            className="styled-button"
+        >
+            {children}
+        </button>
+    );
+
     return (
         <div className="ocr-container">
             <div className="ocr-content">
@@ -588,42 +622,44 @@ const OCRGemini = () => {
                         </tbody>
                     </table>
                     <div className="lexoffice-section">
-                        <div className="input-group">
-                            <MapPinHouse className="input-icon"/>
-                            <input
-                                type="text"
-                                value={address}
-                                onChange={(e) => setAddress(e.target.value)}
-                                placeholder="Address"
-                                className="lexoffice-input"
-                            />
+                        <div className="input-group-container">
+                            <div className="input-group">
+                                <MapPinHouse className="input-icon"/>
+                                <input
+                                    type="text"
+                                    value={address}
+                                    onChange={(e) => setAddress(e.target.value)}
+                                    placeholder="Address"
+                                    className="lexoffice-input"
+                                />
+                            </div>
+                            <div className="input-group">
+                                <Lock className="input-icon"/>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Password"
+                                    className="lexoffice-input"
+                                />
+                            </div>
                         </div>
-                        <div className="input-group">
-                            <Lock className="input-icon"/>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Password"
-                                className="lexoffice-input"
-                            />
+                        <div className="button-container">
+                            <StyledButton onClick={downloadCSV}>
+                                <Download size={18} />
+                                Download CSV
+                            </StyledButton>
+                            <StyledButton onClick={() => handleMakeBillWithLexOffice(false)}>
+                                Create LexOffice Bill
+                            </StyledButton>
+                            <StyledButton onClick={() => {
+                                if (window.confirm(`Are you sure you want to create and send an invoice with ${keywordResults["Company"].length} items?`)) {
+                                    handleMakeBillWithLexOffice(true);
+                                }
+                            }}>
+                                Create and Send Invoice
+                            </StyledButton>
                         </div>
-                        <button
-                            onClick={() => handleMakeBillWithLexOffice(false)}
-                            className="lexoffice-button"
-                        >
-                            Create LexOffice Bill
-                        </button>
-                        <button onClick={() => {
-                            if (window.confirm(`Are you sure you want to create and send an invoice with ${keywordResults["Company"].length} items?`)) {
-                                handleMakeBillWithLexOffice(true);
-                            }
-                        }
-                        }
-                                className="send-invoice-button"
-                        >
-                            Create and Send Invoice
-                        </button>
                     </div>
                 </div>
             </div>
